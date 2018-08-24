@@ -246,12 +246,8 @@ export class GitHistoryWidget extends GitNavigableListWidget<GitHistoryListNode>
     protected readonly loadMoreRows = (params: IndexRange) => this.doLoadMoreRows(params);
     protected doLoadMoreRows(params: IndexRange): Promise<any> {
         let resolver: () => void;
-        /*
-        ok, hier muss nun also die liste die ich an die list component übergebe aktualisiert werden.
-        wäre also wieder wie vorher in addCommits commits added.
-        Problem ist nur wie sich die component verhält wenn ich die liste dynamisch manipuliere
-        also filechanges hinzufüge.
-         */
+
+        console.log('LOAD MORE ROWS', params.startIndex, params.stopIndex);
         setTimeout(() => {
             resolver();
         }, 1000);
@@ -432,17 +428,18 @@ export namespace GitHistoryList {
 export class GitHistoryList extends React.Component<GitHistoryList.Props, GitHistoryList.State> {
     list: List | undefined;
 
-    protected isRowLoaded(opts: { index: number }) {
+    protected readonly checkIfRowIsLoaded = (opts: { index: number }) => this.doCheckIfRowIsLoaded(opts);
+    protected doCheckIfRowIsLoaded(opts: { index: number }) {
         const row = this.props.rows[opts.index];
         return !!row;
     }
 
     render(): React.ReactNode {
+        console.log('RENDER');
         return <InfiniteLoader
-            isRowLoaded={this.isRowLoaded}
+            isRowLoaded={this.checkIfRowIsLoaded}
             loadMoreRows={this.props.loadMoreRows}
-            rowCount={100000}
-            threshold={10}
+            rowCount={this.props.rows.length + 1}
         >
             {
                 ({ onRowsRendered, registerChild }) => (
@@ -456,9 +453,10 @@ export class GitHistoryList extends React.Component<GitHistoryList.Props, GitHis
                                 }}
                                 width={width}
                                 height={height}
+                                onRowsRendered={onRowsRendered}
                                 rowRenderer={this.renderRow}
-                                rowCount={this.props.rows.length}
                                 rowHeight={this.calcRowHeight}
+                                rowCount={this.props.rows.length + 1}
                                 tabIndex={-1}
                                 scrollToIndex={this.props.indexOfSelected}
                             />
@@ -476,15 +474,21 @@ export class GitHistoryList extends React.Component<GitHistoryList.Props, GitHis
     }
 
     protected renderRow: ListRowRenderer = ({ index, key, style }) => {
-        const row = this.props.rows[index];
-        if (GitCommitNode.is(row)) {
-            const head = this.props.renderCommit(row);
+        if (this.checkIfRowIsLoaded({ index })) {
+            const row = this.props.rows[index];
+            if (GitCommitNode.is(row)) {
+                const head = this.props.renderCommit(row);
+                return <div key={key} style={style} className={`commitListElement${index === 0 ? ' first' : ''}`} >
+                    {head}
+                </div>;
+            } else if (GitFileChangeNode.is(row)) {
+                return <div key={key} style={style} className='fileChangeListElement'>
+                    {this.props.renderFileChangeList(row)}
+                </div>;
+            }
+        } else {
             return <div key={key} style={style} className={`commitListElement${index === 0 ? ' first' : ''}`} >
-                {head}
-            </div>;
-        } else if (GitFileChangeNode.is(row)) {
-            return <div key={key} style={style} className='fileChangeListElement'>
-                {this.props.renderFileChangeList(row)}
+                <span className='fa fa-spinner fa-pulse fa-fw'></span>
             </div>;
         }
     }
